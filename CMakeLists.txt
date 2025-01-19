@@ -21,13 +21,17 @@ file(GLOB SOURCES "src/*.cpp")
 # Add SOFA source files
 file(GLOB SOFA_SOURCES "lib/Sofa/*.c")
 
+# Create a static library for SOFA sources
+add_library(sofaLib STATIC ${SOFA_SOURCES})
+set_target_properties(sofaLib PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
+
 # Add the executables
-add_executable(cyOrbitTest src/cyOrbitTest.cpp ${SOFA_SOURCES} ${SOURCES} ${LIBS})
-add_executable(t_sofa_c src/t_sofa_c.c ${SOFA_SOURCES} ${LIBS})
+add_executable(cyOrbitTest src/cyOrbitTest.cpp ${SOURCES} ${LIBS})
+add_executable(t_sofa_c src/t_sofa_c.c ${LIBS})
 
 # Link the math library
-target_link_libraries(cyOrbitTest PRIVATE m)
-target_link_libraries(t_sofa_c PRIVATE m)
+target_link_libraries(cyOrbitTest PRIVATE sofaLib m)
+target_link_libraries(t_sofa_c PRIVATE sofaLib m)
 
 # Set compiler flags based on the build type
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
