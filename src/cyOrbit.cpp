@@ -64,7 +64,7 @@ double M2f(double M, double e)
 
     // M2E
     // double E = M;
-    // for (int j = 0; j < 5; j++)
+    // for (uint64_t j = 0; j < 5; j++)
     // {
     //     E = M + e * sin(E);
     // }
@@ -72,7 +72,7 @@ double M2f(double M, double e)
     // Use Newton's method to solve for E
     double E = M;
     double tol = 1e-15; // tolerance
-    for (int j = 0; j < 10; j++)
+    for (uint64_t j = 0; j < 10; j++)
     {
         double f_E = E - e * sin(E) - M;
         double f_E_prime = 1 - e * cos(E);
@@ -236,6 +236,119 @@ Eigen::Matrix3d El2Aoi(const Eigen::VectorXd &El)
     return R;
 }
 
+int julianDate(const int year, const int month, const int day, const int hour, const int minute, const double second, double &d1, double &d2)
+{
+    int ret = iauCal2jd(year, month, day, &d1, &d2);
+    d2 += (hour + (minute + second / 60) / 60) / 24;
+    return ret;
+}
+
+double julianDate(const int year, const int month, const int day, const int hour, const int minute, const double second)
+{
+    double d1 = 0.0;
+    double d2 = 0.0;
+
+    julianDate(year, month, day, hour, minute, second, d1, d2);
+
+    return d1 + d2;
+}
+
+int julianDate(const Eigen::VectorXd &cal, double &d1, double &d2)
+{
+    assert(cal.size() == 6);
+
+    int year = int(cal(0));
+    int month = int(cal(1));
+    int day = int(cal(2));
+    int hour = int(cal(3));
+    int minute = int(cal(4));
+    double second = cal(5);
+
+    return julianDate(year, month, day, hour, minute, second, d1, d2);
+}
+
+double julianDate(const Eigen::VectorXd &cal)
+{
+    double d1 = 0.0;
+    double d2 = 0.0;
+
+    int ret = julianDate(cal, d1, d2);
+    if (ret != 0)
+    {
+        std::cerr << "julianDate error" << std::endl;
+        return -1;
+    }
+
+    return d1 + d2;
+}
+
+double mjulianSecond(const int year, const int month, const int day, const int hour, const int minute, const double second)
+{
+    // relative to 2451545.0 2000-01-01 12:00:00 UTC
+
+    double d1 = 0.0;
+    double d2 = 0.0;
+    int ret = julianDate(year, month, day, hour, minute, second, d1, d2);
+    return ((d1 - 2451545.0) + d2) * 86400;
+}
+
+int JD2Cal(const double dj1, const double dj2, int &year, int &month, int &day, int &hour, int &minute, double &second)
+{
+    double fd = 0.0;
+    int ret = iauJd2cal(dj1, dj2, &year, &month, &day, &fd);
+
+    hour = int(fd * 24);
+    minute = int((fd * 24 - hour) * 60);
+    second = ((fd * 24 - hour) * 60 - minute) * 60;
+
+    return ret;
+}
+
+int JD2Cal(const double JD, int &year, int &month, int &day, int &hour, int &minute, double &second)
+{
+    double dj1 = 2451545.0;
+    double dj2 = JD - dj1;
+
+    return JD2Cal(dj1, dj2, year, month, day, hour, minute, second);
+}
+
+Eigen::Matrix3d eci2ecef(const double utc1, const double utc2)
+{
+    double dut1 = 0.0;
+
+    double uta = 0.0;
+    double utb = 0.0;
+    iauUtcut1(utc1, utc2, dut1, &uta, &utb);
+
+    double tai1 = 0.0;
+    double tai2 = 0.0;
+    iauUtctai(uta, utb, &tai1, &tai2);
+
+    double tta = 0.0;
+    double ttb = 0.0;
+    iauTaitt(tai1, tai2, &tta, &ttb);
+
+    double xp = 0.0;
+    double yp = 0.0;
+    double rc2t[3][3];
+    iauC2t00b(tta, ttb, uta, utb, xp, yp, rc2t);
+
+    Eigen::Matrix3d Afi;
+    Afi << rc2t[0][0], rc2t[0][1], rc2t[0][2],
+        rc2t[1][0], rc2t[1][1], rc2t[1][2],
+        rc2t[2][0], rc2t[2][1], rc2t[2][2];
+
+    return Afi;
+}
+
+Eigen::Matrix3d eci2ecef(const double JD0)
+{
+    double utc1 = 2451545.0;
+    double utc2 = JD0 - utc1;
+
+    return eci2ecef(utc1, utc2);
+}
+
 Eigen::Vector3d twoBodyAccel(const Eigen::Vector3d &r, const double mu)
 {
     Eigen::Vector3d acc;
@@ -243,7 +356,7 @@ Eigen::Vector3d twoBodyAccel(const Eigen::Vector3d &r, const double mu)
     return acc;
 }
 
-std::function<Eigen::VectorXd(double t0, const Eigen::VectorXd &x0)> genTwoBodyModel(const double mu)
+std::function<Eigen::VectorXd(double JD0, const Eigen::VectorXd &x0)> genTwoBodyModel(const double mu)
 {
     return [mu](double t, const Eigen::VectorXd &x) -> Eigen::VectorXd
     {
@@ -252,6 +365,223 @@ std::function<Eigen::VectorXd(double t0, const Eigen::VectorXd &x0)> genTwoBodyM
         dxdt.segment(3, 3) = twoBodyAccel(x.segment(0, 3), mu);
         return dxdt;
     };
+}
+
+std::function<Eigen::VectorXd(double JD0, const Eigen::VectorXd &x0)> genTwoBodyModel()
+{
+    return genTwoBodyModel(Constants::mu_E);
+}
+
+Eigen::Vector3d CentralBodyAccel(const Eigen::Vector3d &Rf, const uint64_t degree, const uint64_t order, const Eigen::MatrixXd &C, const Eigen::MatrixXd &S, const double Re, const double GM)
+{
+    double DU = Re;
+    double TU = sqrt(DU * DU * DU / GM);
+    double Req = 1;
+    double mu = 1;
+    Eigen::Vector3d r = Rf / DU;
+
+    /////////////
+    Eigen::Vector3d dRdr = Eigen::Vector3d::Zero();
+    Eigen::Vector3d dRdphi = Eigen::Vector3d::Zero();
+    Eigen::Vector3d dRdlambda = Eigen::Vector3d::Zero();
+
+    double norm_R = r.norm();
+    double rho = sqrt(r(0) * r(0) + r(1) * r(1));
+    double lambda = atan2(r(1), r(0));
+    double phi = asin(r(2) / norm_R);
+
+    double F1 = norm_R * norm_R;
+
+    ////////////
+    Eigen::MatrixXd P = Eigen::MatrixXd::Zero(degree + 3, degree + 3);
+    Eigen::MatrixXd scaleFactor = Eigen::MatrixXd::Zero(degree + 3, degree + 3);
+
+    Associted_Legendre(degree + 2, r, P, scaleFactor);
+
+    Eigen::Vector3d drdR = r / norm_R;
+
+    double sum_dRdr = 0;
+
+    for (uint64_t n = 2; n <= degree; n++)
+    {
+        double G_r = pow(F1, -(n + 2.0) / 2);
+        double sum_dRdr1 = 0;
+        for (uint64_t m = 0; m <= order; m++)
+        {
+            double cos_sin_f = C(n, m) * cos(m * lambda) + S(n, m) * sin(m * lambda);
+            sum_dRdr1 += P(n, m) * cos_sin_f;
+        }
+
+        sum_dRdr += (n + 1) * pow(Req, n) * G_r * sum_dRdr1;
+    }
+
+    dRdr = -mu * sum_dRdr * drdR;
+
+    ////////////
+
+    Eigen::Vector3d dphidR = (1 / rho) * Eigen::Vector3d(-r(0) * r(2) / F1, -r(1) * r(2) / F1, rho * rho / F1);
+
+    double sum_dRdphi = 0;
+
+    for (uint64_t n = 2; n <= degree; n++)
+    {
+        for (uint64_t m = 0; m <= order; m++)
+        {
+            double g_n1 = pow(F1, -(n + 1.0) / 2);
+            double tan_phi = r(2) / rho;
+            sum_dRdphi += pow(Req, n) * g_n1 * (P(n, m + 1) * scaleFactor(n, m) - m * tan_phi * P(n, m)) * (C(n, m) * cos(m * lambda) + S(n, m) * sin(m * lambda));
+        }
+    }
+
+    dRdphi = mu * sum_dRdphi * dphidR;
+
+    ////////////
+
+    Eigen::Vector3d dlambdadR = (1 / rho / rho) * Eigen::Vector3d(-r(1), r(0), 0);
+
+    double sum_dRdlambda = 0;
+
+    for (uint64_t n = 2; n <= degree; n++)
+    {
+        double G_lambda = pow(F1, -(n + 1.0) / 2);
+        double sum_dRdlambda1 = 0;
+        for (uint64_t m = 0; m <= order; m++)
+        {
+            double del_cos_sin_f = m * (-C(n, m) * sin(m * lambda) + S(n, m) * cos(m * lambda));
+            sum_dRdlambda1 += P(n, m) * del_cos_sin_f;
+        }
+
+        sum_dRdlambda += pow(Req, n) * G_lambda * sum_dRdlambda1;
+    }
+
+    dRdlambda = mu * sum_dRdlambda * dlambdadR;
+
+    ////////////
+
+    double R = Rf.norm();
+    Eigen::Vector3d acc = -GM / R / R / R * Rf + (dRdr + dRdphi + dRdlambda) * DU / TU / TU;
+
+    return acc;
+}
+
+int Associted_Legendre(const uint64_t N, const Eigen::Vector3d &R, Eigen::MatrixXd &P, Eigen::MatrixXd &scaleFactor)
+{
+    double x = R(2) / R.norm();
+    double y = sqrt(1 - x * x);
+
+    Eigen::MatrixXd psi = Eigen::MatrixXd::Zero(N + 1, N + 1);
+    Eigen::MatrixXd kappa = Eigen::MatrixXd::Zero(N + 1, N + 1);
+    Eigen::MatrixXd zi = Eigen::MatrixXd::Zero(N + 1, N + 1);
+
+    zi(1, 0) = sqrt(3);
+    for (uint64_t n = 2; n <= N; n++)
+    {
+        zi(n, 0) = sqrt((2 * n + 1.0) / (2 * n));
+    }
+
+    for (uint64_t n = 0; n <= N; n++)
+    {
+        for (uint64_t m = 0; m < n; m++)
+        {
+            psi(n, m) = sqrt(((2 * n + 1.0) * (2 * n - 1.0) / (n - m) / (n + m)));
+        }
+    }
+
+    for (uint64_t n = 2; n <= N; n++)
+    {
+        for (uint64_t m = 0; m < n - 1; m++)
+        {
+            kappa(n, m) = psi(n, m) / psi(n - 1, m);
+        }
+    }
+
+    // calculate P
+    P = Eigen::MatrixXd::Zero(N + 1, N + 1);
+    P(0, 0) = 1;
+
+    for (uint64_t n = 1; n <= N; n++)
+    {
+        P(n, n) = zi(n, 0) * y * P(n - 1, n - 1);
+        P(n, n - 1) = psi(n, n - 1) * x * P(n - 1, n - 1);
+    }
+
+    for (uint64_t n = 2; n <= N; n++)
+    {
+        for (uint64_t m = 0; m < n - 1; m++)
+        {
+            P(n, m) = psi(n, m) * x * P(n - 1, m) - kappa(n, m) * P(n - 2, m);
+        }
+    }
+
+    // calculate scaleFactor
+    scaleFactor = Eigen::MatrixXd::Zero(N + 1, N + 1);
+    scaleFactor(0, 0) = 0;
+    scaleFactor(1, 0) = 1;
+    scaleFactor(1, 1) = 0;
+
+    for (uint64_t n = 2; n <= N; n++)
+    {
+        uint64_t k = n;
+        for (uint64_t m = 0; m <= n; m++)
+        {
+            uint64_t p = m;
+            if (n == m)
+            {
+                scaleFactor(k, k) = 0;
+            }
+            else if (m == 0)
+            {
+                scaleFactor(k, p) = sqrt((n + 1.0) * n / 2);
+            }
+            else
+            {
+                scaleFactor(k, p) = sqrt((n + m + 1.0) * (n - m));
+            }
+        }
+    }
+
+    return 0;
+}
+
+std::function<Eigen::VectorXd(double JD0, const Eigen::VectorXd &x0)> genCentralBodyAccelModel(const uint64_t degree, const uint64_t order, const Eigen::MatrixXd &C, const Eigen::MatrixXd &S, const double Re, const double mu)
+{
+    std::function<Eigen::VectorXd(double JD0, const Eigen::VectorXd &x0)> func = [degree, order, C, S, Re, mu](double JD0, const Eigen::VectorXd &x0) -> Eigen::VectorXd
+    {
+        Eigen::Vector3d Ri = x0.segment(0, 3);
+        Eigen::Vector3d Vi = x0.segment(3, 3);
+
+        Eigen::Matrix3d Afi = eci2ecef(JD0);
+        Eigen::Vector3d Rf = Afi * Ri;
+
+        Eigen::Vector3d af = CentralBodyAccel(Rf, degree, order, C, S, Re, mu);
+
+        Eigen::Vector3d ai = Afi.transpose() * af;
+
+        Eigen::VectorXd dxdt(x0.size());
+        dxdt.segment(0, 3) = Vi;
+        dxdt.segment(3, 3) = ai;
+
+        return dxdt;
+    };
+    return func;
+}
+
+std::function<Eigen::VectorXd(double JD0, const Eigen::VectorXd &x0)> genCentralBodyAccelModel(const uint64_t degree, const uint64_t order)
+{
+    assert(degree >= 0 && order >= 0);
+    assert(degree >= order);
+
+    Eigen::MatrixXd C;
+    Eigen::MatrixXd S;
+
+    int ret = Constants::importEGM2008(degree, order, C, S);
+    if (ret != 0)
+    {
+        std::cerr << "Failed to import EGM2008" << std::endl;
+        exit(-1);
+    }
+
+    return genCentralBodyAccelModel(degree, order, C, S, Constants::Re_EGM2008, Constants::GM_EGM2008);
 }
 
 Eigen::Vector<double, 6> GaussPtb(const Eigen::Vector<double, 6> &El, const Eigen::Vector3d &fi, const double mu)
@@ -338,11 +668,11 @@ double timeit(std::function<void()> func)
     // return the calculation time(seconds) of func
     double itermax = 5;
     auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < itermax; i++)
+    for (uint64_t i = 0; i < itermax; i++)
     {
         func();
     }
     auto end = std::chrono::high_resolution_clock::now();
-    double duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1e6 / itermax;
+    double duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1e9 / itermax;
     return duration;
 }
