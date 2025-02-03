@@ -35,7 +35,7 @@ int Constants::importEGM2008(std::string filepath, const uint64_t degree, const 
             C(n, m) = Cnm;
             S(n, m) = Snm;
         }
-        else
+        else if (n > degree)
         {
             break;
         }
