@@ -1,7 +1,7 @@
-#include <Constants.h>
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
+#include "Constants.h"
 int Constants::importEGM2008(std::string filepath, const uint64_t degree, const uint64_t order, Eigen::MatrixXd &C, Eigen::MatrixXd &S)
 {
     std::ifstream file(filepath);
@@ -35,7 +35,7 @@ int Constants::importEGM2008(std::string filepath, const uint64_t degree, const 
             C(n, m) = Cnm;
             S(n, m) = Snm;
         }
-        else
+        else if (n > degree)
         {
             break;
         }
