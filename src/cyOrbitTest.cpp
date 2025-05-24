@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 
     double JD0 = 0.0;
     double mJD = 0.0;
-    julianDate(2024, 6, 13, 4, 0, 0, JD0, mJD);
+    julianDate(2024, 6, 14, 0, 0, 0, JD0, mJD);
 
     int year, month, day, hour, minute;
     double second;
@@ -86,15 +86,13 @@ int main(int argc, char **argv)
     cout << "Rf = " << Rf.format(IOFormat(FullPrecision, DontAlignCols, ", ", ", ", "", "", "[", "]")) << endl;
 
     // ode4 nonsphere test
-
-    // VectorXd x0(6);
-    // x0 << 33068056.167, -26162779.601, -77426.421, 1907.672875, 2411.188377, -4.602025;
-    El0 << 7000000, 0.001, 50.0 / 180 * M_PI, 2.0 / 180 * M_PI, 3.0 / 180 * M_PI, 6.0 / 180 * M_PI;
+    julianDate(2024, 6, 14, 0, 0, 0, JD0, mJD);
+    El0 << 6898000, 0.001, 50.0 / 180 * M_PI, 2.0 / 180 * M_PI, 3.0 / 180 * M_PI, 6.0 / 180 * M_PI;
     VectorXd x0 = El2RV(El0);
     cout << "x0 = " << x0 << endl;
-    centralBodyModel = genCentralBodyAccelModel(21, 21, JD0 + mJD);
+    centralBodyModel = genCentralBodyAccelModel(8, 8, JD0 + mJD);
 
-    VectorXd tspan = VectorXd::LinSpaced(86400.0 / 60 + 1, 0, 86400);
+    VectorXd tspan = VectorXd::LinSpaced(86400.0 / 1 + 1, 0, 86400);
     RVt2 = ode4(centralBodyModel, x0, tspan);
 
     // 将tspan和RVt2拼接成7列矩阵

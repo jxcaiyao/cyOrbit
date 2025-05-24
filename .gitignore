@@ -1,0 +1,15 @@
+# Build files
+*.a
+*.csv
+
+# folders
+.vscode
+CMakeFiles
+
+# specific files
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+cyOrbitTest
+t_sofa_c
+EOPDataHandlerTest

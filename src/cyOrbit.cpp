@@ -40,18 +40,18 @@ Eigen::MatrixXd ode4(std::function<Eigen::VectorXd(double t0, const Eigen::Vecto
 
     for (Eigen::Index i = 1; i < n; i++)
     {
-        x.row(i) = ode4Iter(func, x.row(i - 1), tspan(i) - tspan(i - 1));
+        x.row(i) = ode4Iter(func, x.row(i - 1), tspan(i), tspan(i) - tspan(i - 1));
     }
 
     return x;
 }
 
-Eigen::VectorXd ode4Iter(std::function<Eigen::VectorXd(double t0, const Eigen::VectorXd &x0)> func, const Eigen::VectorXd &x0, double dt)
+Eigen::VectorXd ode4Iter(std::function<Eigen::VectorXd(double t0, const Eigen::VectorXd &x0)> func, const Eigen::VectorXd &x0, double t0, double dt)
 {
-    Eigen::VectorXd k1 = func(0, x0);
-    Eigen::VectorXd k2 = func(dt / 2, x0 + dt / 2 * k1);
-    Eigen::VectorXd k3 = func(dt / 2, x0 + dt / 2 * k2);
-    Eigen::VectorXd k4 = func(dt, x0 + dt * k3);
+    Eigen::VectorXd k1 = func(t0, x0);
+    Eigen::VectorXd k2 = func(t0 + dt / 2, x0 + dt / 2 * k1);
+    Eigen::VectorXd k3 = func(t0 + dt / 2, x0 + dt / 2 * k2);
+    Eigen::VectorXd k4 = func(t0 + dt, x0 + dt * k3);
 
     Eigen::VectorXd x1 = x0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
 
@@ -339,10 +339,16 @@ Eigen::VectorXd JD2Cal(const double JD)
 
 Eigen::Matrix3d eci2ecef(const double utc1, const double utc2)
 {
-    double dut1 = -0.0173483;
     const double ARCSEC_TO_RAD = DAS2R; // 1 arcsecond in radians
-    double xp = 0.000364 * ARCSEC_TO_RAD;
-    double yp = -0.000133 * ARCSEC_TO_RAD;
+    double dut1 = 0;
+    double xp = 0;
+    double yp = 0;
+    // double dut1 = -0.0173483;
+    // double xp = 0.000364 * ARCSEC_TO_RAD;
+    // double yp = -0.000133 * ARCSEC_TO_RAD;
+    // double dut1 = -0.016962600000000;
+    // double xp = 0.051837000000000 * ARCSEC_TO_RAD;
+    // double yp = 0.467749000000000 * ARCSEC_TO_RAD;
 
     double uta = 0.0;
     double utb = 0.0;

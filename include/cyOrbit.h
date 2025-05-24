@@ -12,7 +12,7 @@ Eigen::Matrix3d roty(double angle);
 Eigen::Matrix3d rotz(double angle);
 
 Eigen::MatrixXd ode4(std::function<Eigen::VectorXd(double t0, const Eigen::VectorXd &x0)> func, const Eigen::VectorXd &x0, const Eigen::VectorXd &tspan);
-Eigen::VectorXd ode4Iter(std::function<Eigen::VectorXd(double t0, const Eigen::VectorXd &x0)> func, const Eigen::VectorXd &x0, double dt);
+Eigen::VectorXd ode4Iter(std::function<Eigen::VectorXd(double t0, const Eigen::VectorXd &x0)> func, const Eigen::VectorXd &x0, double t0, double dt);
 
 double M2f(double M, double e);
 double f2M(double f, double e);
